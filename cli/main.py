@@ -482,13 +482,14 @@ def get_user_selections():
         title="Welcome to TradingAgents",
         subtitle="Multi-Agents LLM Financial Trading Framework",
     )
+    # console 是通过 rich.console.Console 创建的一个实例，用于在终端中输出格式丰富的内容（如颜色、表格、面板、Markdown 等）
     console.print(Align.center(welcome_box))
     console.print()
     console.print()  # Add vertical space before announcements
 
     # Fetch and display announcements (silent on failure)
     announcements = fetch_announcements()
-    display_announcements(console, announcements)
+    display_announcements(console, announcements) # 声明
 
     # Create a boxed questionnaire for each step
     def create_question_box(title, prompt, default=None):
@@ -498,7 +499,7 @@ def get_user_selections():
             box_content += f"\n[dim]Default: {default}[/dim]"
         return Panel(box_content, border_style="blue", padding=(1, 2))
 
-    # Step 1: Ticker symbol
+    # Step 1: Ticker symbol，选取股票
     console.print(
         create_question_box(
             "Step 1: Ticker Symbol",
@@ -540,6 +541,10 @@ def get_user_selections():
     )
 
     # Step 5: Research depth
+    """ 辩论轮数由 research_depth（研究深度）参数控制，用户在选择时会看到三个选项：
+        Shallow（浅度） → 辩论轮数 = 1
+        Medium （中度） → 辩论轮数 = 3
+        Deep   （深度） → 辩论轮数 = 5 """
     console.print(
         create_question_box(
             "Step 5: Research Depth", "Select your research depth level"
@@ -927,35 +932,40 @@ def format_tool_args(args, max_length=80) -> str:
 
 def run_analysis():
     # First get all user selections
+    """ API 的选择完全在 get_user_selections() 函数中决定
+    在该函数中，会依次调用：
+    select_llm_provider() → 返回 (provider, backend_url)，其中 provider 决定使用哪个 LLM 客户端（如 "openai"、"anthropic"），backend_url 指定自定义 API 端点（如您修改的 Ollama/兼容地址）。
+    select_shallow_thinking_agent(provider) 和 select_deep_thinking_agent(provider) → 分别返回快速思考模型和深度思考模型的名称（例如 "Qwen/Qwen3-32B-A3B"）。"""
     selections = get_user_selections()
 
     # Create config with selected research depth
     config = DEFAULT_CONFIG.copy()
-    config["max_debate_rounds"] = selections["research_depth"]
+    config["max_debate_rounds"]       = selections["research_depth"]  # selections["research_depth"]  : 5
     config["max_risk_discuss_rounds"] = selections["research_depth"]
-    config["quick_think_llm"] = selections["shallow_thinker"]
-    config["deep_think_llm"] = selections["deep_thinker"]
-    config["backend_url"] = selections["backend_url"]
-    config["llm_provider"] = selections["llm_provider"].lower()
+    config["quick_think_llm"]         = selections["shallow_thinker"] # selections["shallow_thinker"] : qwen3-moe
+    config["deep_think_llm"]          = selections["deep_thinker"]    # selections["deep_thinker"]    : qwen3-moe
+    config["backend_url"]             = selections["backend_url"]
+    config["llm_provider"]            = selections["llm_provider"].lower()
     # Provider-specific thinking configuration
-    config["google_thinking_level"] = selections.get("google_thinking_level")
+    config["google_thinking_level"]   = selections.get("google_thinking_level")
     config["openai_reasoning_effort"] = selections.get("openai_reasoning_effort")
-    config["anthropic_effort"] = selections.get("anthropic_effort")
-    config["output_language"] = selections.get("output_language", "English")
+    config["anthropic_effort"]        = selections.get("anthropic_effort")
+    config["output_language"]         = selections.get("output_language", "English")
 
     # Create stats callback handler for tracking LLM/tool calls
+    # 该 handler 负责在 LLM 调用、工具执行时收集统计数据（调用次数、token 用量等），并在 CLI 实时界面底部显示。
     stats_handler = StatsCallbackHandler()
 
     # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
-    selected_set = {analyst.value for analyst in selections["analysts"]}
-    selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
+    selected_set = {analyst.value for analyst in selections["analysts"]}    # selected_set          : {'market', 'fundamentals', 'news', 'social'}
+    selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set] # selected_analyst_keys : ['market', 'social', 'news', 'fundamentals']
 
     # Initialize the graph with callbacks bound to LLMs
     graph = TradingAgentsGraph(
-        selected_analyst_keys,
-        config=config,
-        debug=True,
-        callbacks=[stats_handler],
+        selected_analyst_keys,      # 选中的分析师类型列表，例如 ["market", "social", "news", "fundamentals"],决定启用哪几位分析师，以及它们的执行顺序
+        config=config,              # 用户配置（LLM 提供商、模型名、辩论轮数、输出语言等）
+        debug=True,                 # 启用调试模式（会打印每条消息的完整内容）
+        callbacks=[stats_handler],  # 传入统计回调，用于跟踪 LLM 调用次数、token 用量等
     )
 
     # Initialize message buffer with selected analysts
@@ -1206,3 +1216,30 @@ def analyze():
 
 if __name__ == "__main__":
     app()
+    """
+    app 是一个 typer.Typer 实例，用于定义命令。
+    该文件只有一个命令 @app.command() 装饰的 analyze() 函数，因此直接运行 python -m cli.main 等价于执行 analyze 命令。
+
+    ① 分析师团队（最多 4 个，可选）
+        Market Analyst
+        Social Media Analyst
+        News Analyst
+        Fundamentals Analyst
+        这些分析师通过 selected_analysts 参数控制是否启用及执行顺序（默认全选）。
+
+    ② 研究团队（3 个，固定）
+        Bull Researcher（多头研究员）
+        Bear Researcher（空头研究员）
+        Research Manager（研究经理）
+
+    ③ 交易员（1 个，固定）
+        Trader
+
+    ④ 风险管理团队（3 个，固定）
+        Aggressive Analyst（激进风险分析师）
+        Neutral Analyst（中性风险分析师）
+        Conservative Analyst（保守风险分析师）
+
+    ⑤ 投资组合经理（1 个，固定）
+        Portfolio Manager
+    """

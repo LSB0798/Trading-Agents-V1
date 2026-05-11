@@ -77,7 +77,8 @@ class OpenAIClient(BaseLLMClient):
         # Native OpenAI: use Responses API for consistent behavior across
         # all model families. Third-party providers use Chat Completions.
         if self.provider == "openai":
-            llm_kwargs["use_responses_api"] = True
+            # llm_kwargs["use_responses_api"] = True
+            llm_kwargs["use_responses_api"] = False
 
         return NormalizedChatOpenAI(**llm_kwargs)
 
